@@ -1,4 +1,4 @@
-const DAILY_CAP  = 20
+const DAILY_CAP  = 600
 const SCAN_KEY   = 'fittrack_scans'
 const ANON_KEY   = 'sb_publishable_8g5OMOHCxhWTTAzvP4On4A_TC-sh19O'
 const FN_URL     = 'https://ahecfusgkzzjpbxgvjmh.supabase.co/functions/v1/analyze-food'
