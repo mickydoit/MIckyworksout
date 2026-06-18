@@ -8,18 +8,21 @@ export default function ThemeToggle({ theme, onToggle }) {
       title={isDark ? 'Light mode' : 'Dark mode'}
       style={{
         position: 'absolute', top: 14, right: 16, zIndex: 200,
-        width: 34, height: 34, borderRadius: '50%',
-        background: 'var(--bg-inset)',
-        border: '1px solid var(--sep)',
+        width: 36, height: 36, borderRadius: '50%',
+        background: isDark ? 'rgba(187,134,252,0.1)' : 'rgba(103,80,164,0.08)',
+        border: isDark ? '1px solid rgba(187,134,252,0.25)' : '1px solid rgba(103,80,164,0.18)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
         cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontFamily: 'inherit',
-        transition: 'background 0.25s',
+        boxShadow: isDark ? '0 0 12px rgba(187,134,252,0.2)' : 'none',
+        transition: 'all 0.25s',
       }}
     >
       {isDark
-        ? <Sun  size={14} color="var(--primary)" strokeWidth={2.5} />
-        : <Moon size={14} color="var(--text-2)"   strokeWidth={2.5} />
+        ? <Sun  size={15} color="var(--primary)" strokeWidth={2.5} />
+        : <Moon size={15} color="var(--text-2)"  strokeWidth={2.5} />
       }
     </button>
   )

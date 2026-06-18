@@ -14,9 +14,21 @@ export default function Nav({ active, onSelect }) {
         {tabs.map(({ id, label, Icon }) => {
           const on = active === id
           return (
-            <button key={id} className="nav-item" onClick={() => onSelect(id)}>
-              <Icon size={22} strokeWidth={on ? 2.5 : 1.8} color={on ? 'var(--primary)' : 'var(--text-3)'} />
-              <span className="nav-label" style={{ color: on ? 'var(--primary)' : 'var(--text-3)' }}>
+            <button
+              key={id}
+              className="nav-item"
+              onClick={() => onSelect(id)}
+              style={{
+                filter: on ? 'drop-shadow(0 0 6px rgba(187,134,252,0.6))' : 'none',
+                transition: 'filter 0.2s',
+              }}
+            >
+              <Icon
+                size={22}
+                strokeWidth={on ? 2.5 : 1.8}
+                color={on ? 'var(--primary)' : 'var(--text-2)'}
+              />
+              <span className="nav-label" style={{ color: on ? 'var(--primary)' : 'var(--text-2)' }}>
                 {label}
               </span>
             </button>
