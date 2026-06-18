@@ -72,16 +72,20 @@ export default function Log() {
 
   const [scanning,   setScanning]   = useState(false)
   const [refining,   setRefining]   = useState(false)
-  const [scanResult, setScanResult] = useState(null)   // initial AI result (may have questions)
+  const [scanResult, setScanResult] = useState(null)
   const [answers,    setAnswers]    = useState({})      // {questionIndex: optionString}
-  const [finalResult,setFinalResult]= useState(null)   // refined result after follow-ups
+  const [customText, setCustomText] = useState({})     // {questionIndex: string} for "Other" input
+  const [finalResult,setFinalResult]= useState(null)
   const [scanError,  setScanError]  = useState('')
   const [scansLeft,  setScansLeft]  = useState(() => scansRemaining())
   const fileInputRef = useRef(null)
 
   const displayResult = finalResult ?? scanResult
   const hasQuestions  = scanResult?.questions?.length > 0 && !finalResult
-  const allAnswered   = hasQuestions && scanResult.questions.every((_, i) => answers[i])
+  const allAnswered   = hasQuestions && scanResult.questions.every((_, i) => {
+    if (answers[i] === '__other__') return customText[i]?.trim().length > 0
+    return !!answers[i]
+  })
 
   const isToday = date === todayStr()
   const todayW  = data.weightLogs.find(l => l.date === date)
@@ -116,6 +120,7 @@ export default function Log() {
     setScanResult(null)
     setFinalResult(null)
     setAnswers({})
+    setCustomText({})
     setScanning(true)
 
     try {
@@ -141,7 +146,7 @@ export default function Log() {
     try {
       const answersArr = scanResult.questions.map((q, i) => ({
         question: q.question,
-        answer: answers[i],
+        answer: answers[i] === '__other__' ? customText[i] : answers[i],
       }))
       const result = await refineFood(
         scanResult.description,
@@ -274,7 +279,7 @@ export default function Log() {
                   </p>
                   <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)' }}>{displayResult.description}</p>
                 </div>
-                <button onClick={() => { setScanResult(null); setFinalResult(null); setAnswers({}) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+                <button onClick={() => { setScanResult(null); setFinalResult(null); setAnswers({}); setCustomText({}) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
                   <X size={14} color="var(--text-3)" />
                 </button>
               </div>
@@ -307,21 +312,51 @@ export default function Log() {
                               key={opt}
                               onClick={() => setAnswers(a => ({ ...a, [qi]: opt }))}
                               style={{
-                                padding: '7px 13px',
-                                borderRadius: 20,
+                                padding: '7px 13px', borderRadius: 20,
                                 border: `1px solid ${selected ? 'var(--primary)' : 'rgba(187,134,252,0.25)'}`,
                                 background: selected ? 'var(--primary)' : 'transparent',
                                 color: selected ? '#fff' : 'var(--text-1)',
                                 fontSize: 13, fontWeight: 600,
-                                cursor: 'pointer', fontFamily: 'inherit',
-                                transition: 'all 0.15s',
+                                cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
                               }}
                             >
                               {opt}
                             </button>
                           )
                         })}
+                        {/* Other chip */}
+                        <button
+                          onClick={() => setAnswers(a => ({ ...a, [qi]: '__other__' }))}
+                          style={{
+                            padding: '7px 13px', borderRadius: 20,
+                            border: `1px solid ${answers[qi] === '__other__' ? 'var(--primary)' : 'rgba(187,134,252,0.25)'}`,
+                            background: answers[qi] === '__other__' ? 'var(--primary)' : 'transparent',
+                            color: answers[qi] === '__other__' ? '#fff' : 'var(--text-2)',
+                            fontSize: 13, fontWeight: 600,
+                            cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
+                          }}
+                        >
+                          Other…
+                        </button>
                       </div>
+                      {/* Free-text input when Other is selected */}
+                      {answers[qi] === '__other__' && (
+                        <input
+                          autoFocus
+                          type="text"
+                          placeholder="Type your answer…"
+                          value={customText[qi] || ''}
+                          onChange={e => setCustomText(t => ({ ...t, [qi]: e.target.value }))}
+                          style={{
+                            marginTop: 8, width: '100%', boxSizing: 'border-box',
+                            background: 'var(--bg-inset)',
+                            border: '1px solid var(--primary)',
+                            borderRadius: 10, padding: '9px 12px',
+                            fontSize: 14, color: 'var(--text-1)',
+                            fontFamily: 'inherit', outline: 'none',
+                          }}
+                        />
+                      )}
                     </div>
                   ))}
                   <button
