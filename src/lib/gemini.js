@@ -1,4 +1,4 @@
-const DAILY_CAP  = 10
+const DAILY_CAP  = 20
 const SCAN_KEY   = 'fittrack_scans'
 const ANON_KEY   = 'sb_publishable_8g5OMOHCxhWTTAzvP4On4A_TC-sh19O'
 const FN_URL     = 'https://ahecfusgkzzjpbxgvjmh.supabase.co/functions/v1/analyze-food'
@@ -33,23 +33,28 @@ function fileToBase64(file) {
   })
 }
 
-export async function analyzeFood(file) {
-  if (scansRemaining() <= 0) throw new Error('Daily limit reached — resets at midnight')
-
-  const imageBase64 = await fileToBase64(file)
-
+async function post(body) {
   const res = await fetch(FN_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${ANON_KEY}`,
-    },
-    body: JSON.stringify({ imageBase64, mimeType: file.type || 'image/jpeg' }),
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+    body: JSON.stringify(body),
   })
-
   const data = await res.json()
   if (!res.ok || data.error) throw new Error(data.error || `Error ${res.status}`)
-
-  incrementScans()
   return data
+}
+
+export async function analyzeFood(file) {
+  if (scansRemaining() <= 0) throw new Error('Daily limit reached — resets at midnight')
+  const imageBase64 = await fileToBase64(file)
+  const data = await post({ imageBase64, mimeType: file.type || 'image/jpeg' })
+  incrementScans()
+  return data // {description, calories, protein, carbs, fat, questions:[]}
+}
+
+export async function refineFood(description, initialMacros, answers) {
+  if (scansRemaining() <= 0) throw new Error('Daily limit reached — resets at midnight')
+  const data = await post({ mode: 'refine', description, initialMacros, answers })
+  incrementScans()
+  return data // {description, calories, protein, carbs, fat}
 }

@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { Scale, Flame, Footprints, Dumbbell, ChevronLeft, ChevronRight, Check, Camera, Loader, X } from 'lucide-react'
 import WorkoutLogger from '../components/WorkoutLogger'
 import { useStore, PLAN, todayStr, dateLabel } from '../store'
-import { analyzeFood, scansRemaining } from '../lib/gemini'
+import { analyzeFood, refineFood, scansRemaining } from '../lib/gemini'
 
 function addDays(dateStr, n) {
   const d = new Date(dateStr); d.setDate(d.getDate() + n)
@@ -71,10 +71,17 @@ export default function Log() {
   const [steps,    setSteps]    = useState('')
 
   const [scanning,   setScanning]   = useState(false)
-  const [scanResult, setScanResult] = useState(null)
+  const [refining,   setRefining]   = useState(false)
+  const [scanResult, setScanResult] = useState(null)   // initial AI result (may have questions)
+  const [answers,    setAnswers]    = useState({})      // {questionIndex: optionString}
+  const [finalResult,setFinalResult]= useState(null)   // refined result after follow-ups
   const [scanError,  setScanError]  = useState('')
   const [scansLeft,  setScansLeft]  = useState(() => scansRemaining())
   const fileInputRef = useRef(null)
+
+  const displayResult = finalResult ?? scanResult
+  const hasQuestions  = scanResult?.questions?.length > 0 && !finalResult
+  const allAnswered   = hasQuestions && scanResult.questions.every((_, i) => answers[i])
 
   const isToday = date === todayStr()
   const todayW  = data.weightLogs.find(l => l.date === date)
@@ -94,7 +101,7 @@ export default function Log() {
     if (!calories && !protein) return
     const prev = data.nutritionLogs.find(l => l.date === date)
     logNutrition(date, +calories || prev?.calories || 0, +protein || prev?.protein || 0)
-    setCalories(''); setProtein(''); setScanResult(null); flash('n')
+    setCalories(''); setProtein(''); setScanResult(null); setFinalResult(null); setAnswers({}); flash('n')
   }
   function saveSteps() {
     if (!steps) return; logSteps(date, +steps); setSteps(''); flash('s')
@@ -107,18 +114,48 @@ export default function Log() {
 
     setScanError('')
     setScanResult(null)
+    setFinalResult(null)
+    setAnswers({})
     setScanning(true)
 
     try {
       const result = await analyzeFood(file)
       setScanResult(result)
+      setScansLeft(scansRemaining())
+      // Skip questions if none returned
+      if (!result.questions?.length) {
+        setCalories(String(result.calories))
+        setProtein(String(result.protein))
+      }
+    } catch (err) {
+      setScanError(err.message)
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  async function handleRefine() {
+    if (!scanResult || !allAnswered) return
+    setRefining(true)
+    setScanError('')
+    try {
+      const answersArr = scanResult.questions.map((q, i) => ({
+        question: q.question,
+        answer: answers[i],
+      }))
+      const result = await refineFood(
+        scanResult.description,
+        { calories: scanResult.calories, protein: scanResult.protein, carbs: scanResult.carbs, fat: scanResult.fat },
+        answersArr,
+      )
+      setFinalResult(result)
       setCalories(String(result.calories))
       setProtein(String(result.protein))
       setScansLeft(scansRemaining())
     } catch (err) {
       setScanError(err.message)
     } finally {
-      setScanning(false)
+      setRefining(false)
     }
   }
 
@@ -224,32 +261,96 @@ export default function Log() {
           {/* AI scan result */}
           {scanResult && (
             <div style={{
-              marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid var(--sep)',
+              marginBottom: 16,
               background: 'var(--primary-dim)',
               border: '1px solid rgba(187,134,252,0.25)',
               borderRadius: 14, padding: '14px',
             }}>
+              {/* Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                 <div>
-                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.9, color: 'var(--primary)', marginBottom: 3 }}>AI Analysis</p>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)' }}>{scanResult.description}</p>
+                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.9, color: 'var(--primary)', marginBottom: 3 }}>
+                    {finalResult ? 'Refined estimate' : 'AI Analysis'}
+                  </p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)' }}>{displayResult.description}</p>
                 </div>
-                <button onClick={() => setScanResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+                <button onClick={() => { setScanResult(null); setFinalResult(null); setAnswers({}) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
                   <X size={14} color="var(--text-3)" />
                 </button>
               </div>
+
+              {/* Macros */}
               <div style={{ display: 'flex', gap: 0, borderTop: '1px solid var(--sep)', paddingTop: 12 }}>
-                <MacroRow label="Calories" value={scanResult.calories} unit=" kcal" color="var(--primary)" />
+                <MacroRow label="Calories" value={displayResult.calories} unit=" kcal" color="var(--primary)" />
                 <div style={{ width: 1, background: 'var(--sep)' }} />
-                <MacroRow label="Protein"  value={scanResult.protein}  unit="g" color="var(--primary)" />
+                <MacroRow label="Protein"  value={displayResult.protein}  unit="g" color="var(--primary)" />
                 <div style={{ width: 1, background: 'var(--sep)' }} />
-                <MacroRow label="Carbs"    value={scanResult.carbs}    unit="g" />
+                <MacroRow label="Carbs"    value={displayResult.carbs}    unit="g" />
                 <div style={{ width: 1, background: 'var(--sep)' }} />
-                <MacroRow label="Fat"      value={scanResult.fat}      unit="g" />
+                <MacroRow label="Fat"      value={displayResult.fat}      unit="g" />
               </div>
-              <p style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 10, textAlign: 'center' }}>
-                Calories & protein filled in below — adjust if needed
-              </p>
+
+              {/* Follow-up questions */}
+              {hasQuestions && (
+                <div style={{ marginTop: 14, borderTop: '1px solid var(--sep)', paddingTop: 14 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--primary)', marginBottom: 10 }}>
+                    Refine estimate
+                  </p>
+                  {scanResult.questions.map((q, qi) => (
+                    <div key={qi} style={{ marginBottom: 12 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)', marginBottom: 8 }}>{q.question}</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {q.options.map(opt => {
+                          const selected = answers[qi] === opt
+                          return (
+                            <button
+                              key={opt}
+                              onClick={() => setAnswers(a => ({ ...a, [qi]: opt }))}
+                              style={{
+                                padding: '7px 13px',
+                                borderRadius: 20,
+                                border: `1px solid ${selected ? 'var(--primary)' : 'rgba(187,134,252,0.25)'}`,
+                                background: selected ? 'var(--primary)' : 'transparent',
+                                color: selected ? '#fff' : 'var(--text-1)',
+                                fontSize: 13, fontWeight: 600,
+                                cursor: 'pointer', fontFamily: 'inherit',
+                                transition: 'all 0.15s',
+                              }}
+                            >
+                              {opt}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    onClick={handleRefine}
+                    disabled={!allAnswered || refining}
+                    style={{
+                      width: '100%', marginTop: 4,
+                      padding: '10px', borderRadius: 12,
+                      border: 'none',
+                      background: allAnswered ? 'var(--primary)' : 'var(--bg-inset)',
+                      color: allAnswered ? '#fff' : 'var(--text-3)',
+                      fontSize: 14, fontWeight: 700,
+                      cursor: allAnswered ? 'pointer' : 'not-allowed',
+                      fontFamily: 'inherit', transition: 'all 0.15s',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    }}
+                  >
+                    {refining
+                      ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Refining…</>
+                      : 'Refine estimate'}
+                  </button>
+                </div>
+              )}
+
+              {!hasQuestions && (
+                <p style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 10, textAlign: 'center' }}>
+                  Calories & protein filled in below — adjust if needed
+                </p>
+              )}
             </div>
           )}
 
