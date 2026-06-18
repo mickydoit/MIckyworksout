@@ -13,16 +13,48 @@ function getInitialTheme() {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
-const orb = (top, left, right, bottom, size, color) => ({
-  position: 'absolute',
-  top, left, right, bottom,
-  width: size, height: size,
-  borderRadius: '50%',
-  background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
-  filter: 'blur(55px)',
-  pointerEvents: 'none',
-  zIndex: 0,
-})
+/*
+ * Gradient orbs — position:fixed so they live at the viewport/body level.
+ * The app-shell is transparent in dark mode, so cards' backdrop-filter
+ * blurs these orbs, creating the glass panel effect.
+ */
+const DARK_ORBS = [
+  // Top-right — vivid violet/purple
+  { top: '-100px', right: '-80px', width: 420, height: 420,
+    background: 'radial-gradient(circle, rgba(175,55,255,0.52) 0%, transparent 65%)' },
+  // Left-centre — magenta/pink
+  { top: '28%', left: '-110px', width: 360, height: 360,
+    background: 'radial-gradient(circle, rgba(220,45,180,0.38) 0%, transparent 65%)' },
+  // Bottom-centre — cyan/teal
+  { bottom: '80px', left: '20%', width: 320, height: 320,
+    background: 'radial-gradient(circle, rgba(0,210,255,0.28) 0%, transparent 65%)' },
+  // Bottom-right — indigo/blue
+  { bottom: '60px', right: '-80px', width: 280, height: 280,
+    background: 'radial-gradient(circle, rgba(60,80,255,0.35) 0%, transparent 65%)' },
+  // Mid — subtle warm purple fill
+  { top: '52%', right: '5%', width: 200, height: 200,
+    background: 'radial-gradient(circle, rgba(187,134,252,0.2) 0%, transparent 70%)' },
+]
+
+function Orbs() {
+  return (
+    <>
+      {DARK_ORBS.map((style, i) => (
+        <div
+          key={i}
+          style={{
+            position: 'fixed',
+            borderRadius: '50%',
+            filter: 'blur(45px)',
+            pointerEvents: 'none',
+            zIndex: 0,
+            ...style,
+          }}
+        />
+      ))}
+    </>
+  )
+}
 
 export default function App() {
   const [tab,   setTab]   = useState('today')
@@ -33,19 +65,12 @@ export default function App() {
     localStorage.setItem('fittrack_theme', theme)
   }, [theme])
 
-  const dark = theme === 'dark'
-
   return (
     <StoreProvider>
-      <div className="app-shell">
-        {/* Ambient background orbs — dark mode only */}
-        {dark && <>
-          <div style={orb('-60px', undefined, '-50px', undefined, 260, 'rgba(187,134,252,0.32)')} />
-          <div style={orb(undefined, '-60px', undefined, '130px', 220, 'rgba(45,212,191,0.22)')} />
-          <div style={orb('38%', undefined, '-70px', undefined, 190, 'rgba(96,165,250,0.18)')} />
-          <div style={orb('55%', '10%', undefined, undefined, 160, 'rgba(167,139,250,0.14)')} />
-        </>}
+      {/* Fixed orbs only in dark mode — they show through the transparent app-shell */}
+      {theme === 'dark' && <Orbs />}
 
+      <div className="app-shell">
         <ThemeToggle theme={theme} onToggle={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} />
 
         <div className="page-scroll">
