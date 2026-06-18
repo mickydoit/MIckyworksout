@@ -1,17 +1,10 @@
-const DAILY_CAP = 10
-const SCAN_KEY = 'fittrack_scans'
-const API_KEY  = 'fittrack_gemini_key'
+const DAILY_CAP  = 10
+const SCAN_KEY   = 'fittrack_scans'
+const ANON_KEY   = 'sb_publishable_8g5OMOHCxhWTTAzvP4On4A_TC-sh19O'
+const FN_URL     = 'https://ahecfusgkzzjpbxgvjmh.supabase.co/functions/v1/analyze-food'
 
 function today() {
   return new Date().toISOString().split('T')[0]
-}
-
-export function getGeminiKey() {
-  return localStorage.getItem(API_KEY) || ''
-}
-
-export function setGeminiKey(key) {
-  localStorage.setItem(API_KEY, key.trim())
 }
 
 export function getScansUsed() {
@@ -41,45 +34,22 @@ function fileToBase64(file) {
 }
 
 export async function analyzeFood(file) {
-  const key = getGeminiKey()
-  if (!key) throw new Error('NO_KEY')
   if (scansRemaining() <= 0) throw new Error('Daily limit reached — resets at midnight')
 
-  const base64 = await fileToBase64(file)
+  const imageBase64 = await fileToBase64(file)
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { inline_data: { mime_type: file.type || 'image/jpeg', data: base64 } },
-            { text: `Analyze this food image. Estimate total nutritional content for everything visible.
-Return ONLY valid JSON (no markdown, no explanation):
-{"description":"brief meal name","calories":number,"protein":number,"carbs":number,"fat":number}
-All values integers. Calories in kcal, macros in grams. Be realistic about portion sizes.` }
-          ]
-        }],
-        generationConfig: { temperature: 0.1 },
-      }),
-    }
-  )
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err?.error?.message || `API error ${res.status}`)
-  }
+  const res = await fetch(FN_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${ANON_KEY}`,
+    },
+    body: JSON.stringify({ imageBase64, mimeType: file.type || 'image/jpeg' }),
+  })
 
   const data = await res.json()
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-  const match = text.match(/\{[\s\S]*?\}/)
-  if (!match) throw new Error('Could not read AI response')
-
-  const result = JSON.parse(match[0])
-  if (result.error) throw new Error(result.error)
+  if (!res.ok || data.error) throw new Error(data.error || `Error ${res.status}`)
 
   incrementScans()
-  return result
+  return data
 }

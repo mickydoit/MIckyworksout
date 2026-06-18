@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { Scale, Flame, Footprints, Dumbbell, ChevronLeft, ChevronRight, Check, Camera, Loader, X } from 'lucide-react'
 import WorkoutLogger from '../components/WorkoutLogger'
 import { useStore, PLAN, todayStr, dateLabel } from '../store'
-import { analyzeFood, scansRemaining, getGeminiKey, setGeminiKey } from '../lib/gemini'
+import { analyzeFood, scansRemaining } from '../lib/gemini'
 
 function addDays(dateStr, n) {
   const d = new Date(dateStr); d.setDate(d.getDate() + n)
@@ -70,12 +70,10 @@ export default function Log() {
   const [protein,  setProtein]  = useState('')
   const [steps,    setSteps]    = useState('')
 
-  const [scanning,    setScanning]    = useState(false)
-  const [scanResult,  setScanResult]  = useState(null)
-  const [scanError,   setScanError]   = useState('')
-  const [scansLeft,   setScansLeft]   = useState(() => scansRemaining())
-  const [showKeySetup, setShowKeySetup] = useState(false)
-  const [keyInput,    setKeyInput]    = useState('')
+  const [scanning,   setScanning]   = useState(false)
+  const [scanResult, setScanResult] = useState(null)
+  const [scanError,  setScanError]  = useState('')
+  const [scansLeft,  setScansLeft]  = useState(() => scansRemaining())
   const fileInputRef = useRef(null)
 
   const isToday = date === todayStr()
@@ -102,20 +100,6 @@ export default function Log() {
     if (!steps) return; logSteps(date, +steps); setSteps(''); flash('s')
   }
 
-  function handleCameraClick() {
-    setScanError('')
-    if (!getGeminiKey()) { setShowKeySetup(true); return }
-    fileInputRef.current?.click()
-  }
-
-  function saveKey() {
-    if (!keyInput.trim()) return
-    setGeminiKey(keyInput)
-    setShowKeySetup(false)
-    setKeyInput('')
-    fileInputRef.current?.click()
-  }
-
   async function handlePhotoSelected(e) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -132,8 +116,7 @@ export default function Log() {
       setProtein(String(result.protein))
       setScansLeft(scansRemaining())
     } catch (err) {
-      if (err.message === 'NO_KEY') { setShowKeySetup(true) }
-      else setScanError(err.message)
+      setScanError(err.message)
     } finally {
       setScanning(false)
     }
@@ -213,7 +196,7 @@ export default function Log() {
               {saved.n && <Saved />}
               {/* Camera scan button */}
               <button
-                onClick={handleCameraClick}
+                onClick={() => { setScanError(''); fileInputRef.current?.click() }}
                 disabled={scanning || scansLeft === 0}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 5,
@@ -238,38 +221,6 @@ export default function Log() {
           }
         />
         <div className="card">
-          {/* API key setup */}
-          {showKeySetup && (
-            <div style={{
-              marginBottom: 16, padding: '16px',
-              background: 'var(--primary-dim)',
-              border: '1px solid rgba(187,134,252,0.25)',
-              borderRadius: 14,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)' }}>Enter Gemini API Key</p>
-                <button onClick={() => setShowKeySetup(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                  <X size={14} color="var(--text-3)" />
-                </button>
-              </div>
-              <p style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 10, lineHeight: 1.5 }}>
-                Get a free key at <strong style={{ color: 'var(--primary)' }}>aistudio.google.com</strong> → Get API key. Stored only on your device.
-              </p>
-              <input
-                className="input"
-                style={{ fontSize: 13, marginBottom: 10 }}
-                placeholder="AIzaSy..."
-                value={keyInput}
-                onChange={e => setKeyInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && saveKey()}
-                autoFocus
-              />
-              <button className="btn btn-primary" onClick={saveKey} style={{ padding: '10px' }}>
-                Save & Scan
-              </button>
-            </div>
-          )}
-
           {/* AI scan result */}
           {scanResult && (
             <div style={{
