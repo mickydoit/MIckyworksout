@@ -34,14 +34,24 @@ function fileToBase64(file) {
 }
 
 async function post(body) {
-  const res = await fetch(FN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
-    body: JSON.stringify(body),
-  })
-  const data = await res.json()
-  if (!res.ok || data.error) throw new Error(data.error || `Error ${res.status}`)
-  return data
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 30000)
+  try {
+    const res = await fetch(FN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+    const data = await res.json()
+    if (!res.ok || data.error) throw new Error(data.error || `Error ${res.status}`)
+    return data
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('Request timed out — try again')
+    throw e
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 export async function analyzeFood(file) {
