@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
+import { supabase } from './lib/supabase'
 
 export const PLAN = {
   startDate: '2026-06-22',
@@ -32,7 +33,7 @@ export const SCHEDULE = {
 }
 
 const StoreContext = createContext(null)
-const KEY = 'fittrack_v1'
+const LS_KEY = 'fittrack_v1'
 
 const defaults = {
   weightLogs: [],
@@ -41,19 +42,66 @@ const defaults = {
   stepsLogs: [],
 }
 
+// Merge local + remote arrays keyed by date — remote wins on conflicts
+function mergeByDate(local, remote) {
+  const map = {}
+  for (const item of local) map[item.date] = item
+  for (const item of remote) map[item.date] = item
+  return Object.values(map).sort((a, b) => a.date.localeCompare(b.date))
+}
+
+// Strip undefined/null fields before sending to Supabase
+function cleanRow(obj) {
+  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v != null))
+}
+
 export function StoreProvider({ children }) {
   const [data, setData] = useState(() => {
     try {
-      const raw = localStorage.getItem(KEY)
+      const raw = localStorage.getItem(LS_KEY)
       return raw ? { ...defaults, ...JSON.parse(raw) } : defaults
     } catch { return defaults }
   })
 
+  // Persist locally on every change
   useEffect(() => {
-    localStorage.setItem(KEY, JSON.stringify(data))
+    localStorage.setItem(LS_KEY, JSON.stringify(data))
   }, [data])
 
-  function upsert(listKey, entry) {
+  // Pull from Supabase on mount and merge with local state
+  useEffect(() => {
+    async function syncDown() {
+      try {
+        const [w, n, wk, s] = await Promise.all([
+          supabase.from('weight_logs').select('date, weight').order('date'),
+          supabase.from('nutrition_logs').select('date, calories, protein').order('date'),
+          supabase.from('workout_logs').select('date, type, completed, duration, activity').order('date'),
+          supabase.from('steps_logs').select('date, steps').order('date'),
+        ])
+        if (w.error || n.error || wk.error || s.error) return
+        setData(prev => ({
+          weightLogs:    mergeByDate(prev.weightLogs,    w.data),
+          nutritionLogs: mergeByDate(prev.nutritionLogs, n.data),
+          workoutLogs:   mergeByDate(prev.workoutLogs,   wk.data),
+          stepsLogs:     mergeByDate(prev.stepsLogs,     s.data),
+        }))
+      } catch (e) {
+        console.warn('Supabase sync failed:', e)
+      }
+    }
+    syncDown()
+  }, [])
+
+  async function pushToCloud(table, row) {
+    try {
+      const { error } = await supabase.from(table).upsert(cleanRow(row), { onConflict: 'date' })
+      if (error) console.warn('Cloud push failed:', error.message)
+    } catch (e) {
+      console.warn('Cloud push failed:', e)
+    }
+  }
+
+  function upsert(listKey, entry, table) {
     setData(prev => {
       const list = [...prev[listKey]]
       const i = list.findIndex(l => l.date === entry.date)
@@ -61,15 +109,16 @@ export function StoreProvider({ children }) {
       else { list.push(entry); list.sort((a, b) => a.date.localeCompare(b.date)) }
       return { ...prev, [listKey]: list }
     })
+    pushToCloud(table, entry)
   }
 
   return (
     <StoreContext.Provider value={{
       data,
-      logWeight:    (date, weight)             => upsert('weightLogs',    { date, weight: +weight }),
-      logNutrition: (date, calories, protein)  => upsert('nutritionLogs', { date, calories: +calories, protein: +protein }),
-      logWorkout:   (date, workout)            => upsert('workoutLogs',   { date, ...workout }),
-      logSteps:     (date, steps)              => upsert('stepsLogs',     { date, steps: +steps }),
+      logWeight:    (date, weight)            => upsert('weightLogs',    { date, weight },            'weight_logs'),
+      logNutrition: (date, calories, protein) => upsert('nutritionLogs', { date, calories, protein }, 'nutrition_logs'),
+      logWorkout:   (date, workout)           => upsert('workoutLogs',   { date, ...workout },         'workout_logs'),
+      logSteps:     (date, steps)             => upsert('stepsLogs',     { date, steps },             'steps_logs'),
       clearLog: (type, date) => setData(prev => ({
         ...prev,
         [type]: prev[type].filter(l => l.date !== date)
