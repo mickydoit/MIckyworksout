@@ -293,7 +293,7 @@ export default function Charts() {
                   dataKey="label"
                   tick={{ fontSize: 10, fill: 'var(--text-2)', fontFamily: 'Inter' }}
                   tickLine={false} axisLine={false}
-                  interval={Math.max(0, Math.floor(nutritionChartData.length / 5))}
+                  interval="preserveStartEnd"
                 />
                 <YAxis
                   tick={{ fontSize: 10, fill: 'var(--text-2)', fontFamily: 'Inter' }}
@@ -346,7 +346,7 @@ export default function Charts() {
                   dataKey="label"
                   tick={{ fontSize: 10, fill: 'var(--text-2)', fontFamily: 'Inter' }}
                   tickLine={false} axisLine={false}
-                  interval={Math.max(0, Math.floor(nutritionChartData.length / 5))}
+                  interval="preserveStartEnd"
                 />
                 <YAxis
                   tick={{ fontSize: 10, fill: 'var(--text-2)', fontFamily: 'Inter' }}
