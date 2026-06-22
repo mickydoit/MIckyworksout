@@ -188,6 +188,17 @@ export function buildChartData(weightLogs) {
   return result
 }
 
+export function buildNutritionChartData(nutritionLogs) {
+  return [...nutritionLogs]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-30)
+    .map(l => ({
+      label: dateLabel(l.date),
+      calories: l.calories,
+      protein: l.protein,
+    }))
+}
+
 export function weeklyAverages(weightLogs) {
   const weeks = {}
   for (const log of weightLogs) {

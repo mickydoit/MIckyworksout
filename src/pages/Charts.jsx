@@ -5,7 +5,7 @@ import {
 import { TrendingDown, Target, Calendar, Zap } from 'lucide-react'
 import {
   useStore, PLAN,
-  buildChartData, weeklyAverages, latestWeight, projectedFinish,
+  buildChartData, buildNutritionChartData, weeklyAverages, latestWeight, projectedFinish,
   todayStr, weekNum, dateLabel,
 } from '../store'
 
