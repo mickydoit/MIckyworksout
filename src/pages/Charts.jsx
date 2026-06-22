@@ -47,20 +47,24 @@ export default function Charts() {
   const wk = weekNum(today)
 
   // ── Week navigation state ──────────────────────────────────────────────────
+  // weekOffset: 0 = current week, -1 = last week, -2 = two weeks ago, etc.
+  const [weekOffset, setWeekOffset] = useState(0)
   const [selectedDate, setSelectedDate] = useState(today)
   const [touchStartX, setTouchStartX] = useState(null)
 
+  // weekDays derived from weekOffset only — independent of selectedDate
   const weekDays = useMemo(() => {
-    const d = new Date(selectedDate + 'T00:00:00')
-    const dayOfWeek = (d.getDay() + 6) % 7 // Mon=0, Sun=6
-    const monday = new Date(d)
-    monday.setDate(d.getDate() - dayOfWeek)
+    const now = new Date()
+    const dow = (now.getDay() + 6) % 7 // Mon=0, Sun=6
+    const monday = new Date(now)
+    monday.setDate(now.getDate() - dow + weekOffset * 7)
+    monday.setHours(0, 0, 0, 0)
     return Array.from({ length: 7 }, (_, i) => {
-      const day = new Date(monday)
-      day.setDate(monday.getDate() + i)
-      return day.toISOString().split('T')[0]
+      const d = new Date(monday)
+      d.setDate(monday.getDate() + i)
+      return d.toISOString().split('T')[0]
     })
-  }, [selectedDate])
+  }, [weekOffset])
 
   const weekLabel = useMemo(() => {
     const opts = { day: 'numeric', month: 'short' }
@@ -69,31 +73,40 @@ export default function Charts() {
     return `${s} – ${e}`
   }, [weekDays])
 
-  const isCurrentWeek = weekDays.includes(today)
+  const isCurrentWeek = weekOffset === 0
 
-  const goToPrevWeek = () => {
-    const d = new Date(weekDays[0] + 'T00:00:00')
-    d.setDate(d.getDate() - 7)
-    setSelectedDate(d.toISOString().split('T')[0])
-  }
+  const navigateWeek = (direction) => {
+    const newOffset = weekOffset + direction
+    if (newOffset > 0) return // never go into future weeks
+    setWeekOffset(newOffset)
 
-  const goToNextWeek = () => {
-    if (isCurrentWeek) return
-    const d = new Date(weekDays[0] + 'T00:00:00')
-    d.setDate(d.getDate() + 7)
-    const nextWeekDays = Array.from({ length: 7 }, (_, i) => {
-      const day = new Date(d)
-      day.setDate(d.getDate() + i)
-      return day.toISOString().split('T')[0]
+    // Compute the days of the destination week
+    const now = new Date()
+    const dow = (now.getDay() + 6) % 7
+    const newMonday = new Date(now)
+    newMonday.setDate(now.getDate() - dow + newOffset * 7)
+    newMonday.setHours(0, 0, 0, 0)
+    const destDays = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(newMonday)
+      d.setDate(newMonday.getDate() + i)
+      return d.toISOString().split('T')[0]
     })
-    setSelectedDate(nextWeekDays.includes(today) ? today : nextWeekDays[0])
+
+    if (destDays.includes(today)) {
+      setSelectedDate(today)
+    } else {
+      // Keep same day-of-week, capped at today
+      const selectedDow = (new Date(selectedDate + 'T00:00:00').getDay() + 6) % 7
+      const candidate = destDays[selectedDow]
+      setSelectedDate(candidate <= today ? candidate : destDays[0])
+    }
   }
 
   const handleTouchStart = (e) => setTouchStartX(e.touches[0].clientX)
   const handleTouchEnd = (e) => {
     if (touchStartX === null) return
     const dx = e.changedTouches[0].clientX - touchStartX
-    if (Math.abs(dx) > 50) dx > 0 ? goToPrevWeek() : goToNextWeek()
+    if (Math.abs(dx) > 50) navigateWeek(dx > 0 ? -1 : 1)
     setTouchStartX(null)
   }
 
@@ -342,17 +355,18 @@ export default function Charts() {
           {/* Week navigation header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 12px 8px' }}>
             <button
-              onClick={goToPrevWeek}
-              style={{ background: 'none', border: 'none', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-2)', display: 'flex', alignItems: 'center' }}
+              onClick={() => navigateWeek(-1)}
+              style={{ background: 'none', border: 'none', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-1)', display: 'flex', alignItems: 'center' }}
             >
               <ChevronLeft size={18} />
             </button>
             <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-2)', letterSpacing: 0.3 }}>
-              {weekLabel}
+              {isCurrentWeek ? 'This week' : weekLabel}
             </p>
             <button
-              onClick={goToNextWeek}
-              style={{ background: 'none', border: 'none', padding: '4px 8px', cursor: isCurrentWeek ? 'default' : 'pointer', color: isCurrentWeek ? 'var(--sep)' : 'var(--text-2)', display: 'flex', alignItems: 'center' }}
+              onClick={() => navigateWeek(1)}
+              disabled={isCurrentWeek}
+              style={{ background: 'none', border: 'none', padding: '4px 8px', cursor: isCurrentWeek ? 'default' : 'pointer', color: isCurrentWeek ? 'var(--sep)' : 'var(--text-1)', display: 'flex', alignItems: 'center', opacity: isCurrentWeek ? 0.3 : 1 }}
             >
               <ChevronRight size={18} />
             </button>
