@@ -10,6 +10,8 @@ export default defineConfig({
       injectRegister: 'auto',
       manifest: false, // use existing public/manifest.json
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         cleanupOutdatedCaches: true,
       },

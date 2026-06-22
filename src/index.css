@@ -82,6 +82,7 @@ body {
   height: 100dvh;
   max-width: 430px;
   margin: 0 auto;
+  padding-top: env(safe-area-inset-top, 0px);
   /* Transparent in dark mode so fixed gradient orbs show through cards */
   background: var(--bg);
   position: relative;
@@ -430,7 +431,7 @@ html[data-theme="dark"] .bottom-nav {
 
 /* ── Section spacing ────────────────────────────────────────────────────────── */
 .section { padding: 0 16px; margin-bottom: 18px; }
-.page-header { padding: max(56px, calc(env(safe-area-inset-top) + 20px)) 16px 12px; }
+.page-header { padding: 28px 16px 12px; }
 
 /* ── Log rows ───────────────────────────────────────────────────────────────── */
 .log-row { display: flex; align-items: center; padding: 12px 0; gap: 12px; }
