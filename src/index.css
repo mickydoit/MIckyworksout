@@ -97,7 +97,7 @@ html[data-theme="dark"] .app-shell {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: 92px;
+  padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
   position: relative;
   z-index: 1;
 }
@@ -430,7 +430,7 @@ html[data-theme="dark"] .bottom-nav {
 
 /* ── Section spacing ────────────────────────────────────────────────────────── */
 .section { padding: 0 16px; margin-bottom: 18px; }
-.page-header { padding: 56px 16px 12px; }
+.page-header { padding: max(56px, calc(env(safe-area-inset-top) + 20px)) 16px 12px; }
 
 /* ── Log rows ───────────────────────────────────────────────────────────────── */
 .log-row { display: flex; align-items: center; padding: 12px 0; gap: 12px; }
