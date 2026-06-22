@@ -7,7 +7,7 @@ export default function ThemeToggle({ theme, onToggle }) {
       onClick={onToggle}
       title={isDark ? 'Light mode' : 'Dark mode'}
       style={{
-        position: 'absolute', top: 14, right: 16, zIndex: 200,
+        position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 14px)', right: 16, zIndex: 200,
         width: 36, height: 36, borderRadius: '50%',
         background: isDark ? 'rgba(187,134,252,0.1)' : 'rgba(103,80,164,0.08)',
         border: isDark ? '1px solid rgba(187,134,252,0.25)' : '1px solid rgba(103,80,164,0.18)',
