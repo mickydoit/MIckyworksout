@@ -1,6 +1,6 @@
 import {
   ComposedChart, Line, XAxis, YAxis, Tooltip, ReferenceLine,
-  ResponsiveContainer, CartesianGrid,
+  ResponsiveContainer, CartesianGrid, BarChart, Bar, Cell,
 } from 'recharts'
 import { TrendingDown, Target, Calendar, Zap } from 'lucide-react'
 import {
@@ -23,6 +23,25 @@ const CustomTooltip = ({ active, payload, label }) => {
           <span style={{ color: 'var(--text-1)' }}>{p.value} kg</span>
         </p>
       ))}
+    </div>
+  )
+}
+
+const NutritionTooltip = ({ active, payload, label, target, unit }) => {
+  if (!active || !payload?.length) return null
+  const val = payload[0]?.value
+  return (
+    <div style={{
+      background: 'var(--card)', border: '1px solid var(--sep)',
+      borderRadius: 10, padding: '10px 14px', boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+    }}>
+      <p style={{ fontSize: 11, color: 'var(--text-2)', marginBottom: 5, fontWeight: 600 }}>{label}</p>
+      <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)' }}>
+        {val?.toLocaleString()}{unit}
+      </p>
+      <p style={{ fontSize: 12, color: 'var(--text-2)', marginTop: 2 }}>
+        target: {target?.toLocaleString()}{unit}
+      </p>
     </div>
   )
 }
@@ -58,6 +77,7 @@ export default function Charts() {
   const strengthSessions = data.workoutLogs.filter(l => l.type === 'strength').length
   const cardioSessions   = data.workoutLogs.filter(l => l.type === 'cardio').length
   const nutritionDays    = data.nutritionLogs.length
+  const nutritionChartData = buildNutritionChartData(data.nutritionLogs)
 
   return (
     <div>
@@ -256,6 +276,107 @@ export default function Charts() {
             <div className="stat-block" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '14px' }}>
               <p style={{ fontSize: 32, fontWeight: 800, color: 'var(--primary)', letterSpacing: -1 }}>{nutritionDays}</p>
               <p style={{ fontSize: 12, color: 'var(--text-2)', fontWeight: 500 }}>Days nutrition tracked</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Calories chart ── */}
+      {nutritionChartData.length > 0 && (
+        <div className="section">
+          <p className="section-label">Calories vs Target</p>
+          <div className="card" style={{ padding: '16px 6px 12px' }}>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={nutritionChartData} margin={{ top: 8, right: 14, left: -16, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--sep)" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 10, fill: 'var(--text-2)', fontFamily: 'Inter' }}
+                  tickLine={false} axisLine={false}
+                  interval={Math.max(0, Math.floor(nutritionChartData.length / 5))}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: 'var(--text-2)', fontFamily: 'Inter' }}
+                  tickLine={false} axisLine={false}
+                  width={36}
+                  tickFormatter={v => `${(v / 1000).toFixed(v >= 1000 ? 1 : 0)}${v >= 1000 ? 'k' : ''}`}
+                />
+                <Tooltip content={<NutritionTooltip target={PLAN.calorieTarget} unit=" kcal" />} />
+                <ReferenceLine y={PLAN.calorieTarget} stroke="var(--green)" strokeDasharray="5 4" strokeWidth={1.5} />
+                <Bar dataKey="calories" radius={[3, 3, 0, 0]} maxBarSize={28}>
+                  {nutritionChartData.map((entry, i) => {
+                    const over  = entry.calories > PLAN.calorieTarget + 150
+                    const onTarget = !over && entry.calories >= PLAN.calorieTarget - 150
+                    return (
+                      <Cell
+                        key={i}
+                        fill={over ? 'var(--red)' : onTarget ? 'var(--green)' : 'var(--primary)'}
+                        opacity={0.85}
+                      />
+                    )
+                  })}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--sep)' }}>
+              {[
+                { color: 'var(--green)',   label: 'On target (±150)' },
+                { color: 'var(--primary)', label: 'Under' },
+                { color: 'var(--red)',     label: 'Over by >150' },
+              ].map(({ color, label }) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 3, background: color }} />
+                  <span style={{ fontSize: 11, color: 'var(--text-2)' }}>{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Protein chart ── */}
+      {nutritionChartData.length > 0 && (
+        <div className="section">
+          <p className="section-label">Protein vs Target</p>
+          <div className="card" style={{ padding: '16px 6px 12px' }}>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={nutritionChartData} margin={{ top: 8, right: 14, left: -16, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--sep)" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 10, fill: 'var(--text-2)', fontFamily: 'Inter' }}
+                  tickLine={false} axisLine={false}
+                  interval={Math.max(0, Math.floor(nutritionChartData.length / 5))}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: 'var(--text-2)', fontFamily: 'Inter' }}
+                  tickLine={false} axisLine={false}
+                  width={32}
+                  tickFormatter={v => `${v}g`}
+                />
+                <Tooltip content={<NutritionTooltip target={PLAN.proteinTarget} unit="g" />} />
+                <ReferenceLine y={PLAN.proteinTarget} stroke="var(--green)" strokeDasharray="5 4" strokeWidth={1.5} />
+                <Bar dataKey="protein" radius={[3, 3, 0, 0]} maxBarSize={28}>
+                  {nutritionChartData.map((entry, i) => (
+                    <Cell
+                      key={i}
+                      fill={entry.protein >= PLAN.proteinTarget ? 'var(--green)' : 'var(--primary)'}
+                      opacity={0.85}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--sep)' }}>
+              {[
+                { color: 'var(--green)',   label: 'Hit target' },
+                { color: 'var(--primary)', label: 'Under target' },
+              ].map(({ color, label }) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 3, background: color }} />
+                  <span style={{ fontSize: 11, color: 'var(--text-2)' }}>{label}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
