@@ -1,8 +1,9 @@
+import { useState, useMemo } from 'react'
 import {
   ComposedChart, Line, XAxis, YAxis, Tooltip, ReferenceLine,
   ResponsiveContainer, CartesianGrid,
 } from 'recharts'
-import { TrendingDown, Target, Calendar, Zap } from 'lucide-react'
+import { Target, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   useStore, PLAN,
   buildChartData, weeklyAverages, latestWeight, projectedFinish,
@@ -28,7 +29,6 @@ const CustomTooltip = ({ active, payload, label }) => {
   )
 }
 
-
 function InfoBlock({ label, value, sub, color }) {
   return (
     <div className="stat-block">
@@ -39,11 +39,79 @@ function InfoBlock({ label, value, sub, color }) {
   )
 }
 
+const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+
 export default function Charts() {
   const { data } = useStore()
   const today = todayStr()
   const wk = weekNum(today)
 
+  // ── Week navigation state ──────────────────────────────────────────────────
+  const [selectedDate, setSelectedDate] = useState(today)
+  const [touchStartX, setTouchStartX] = useState(null)
+
+  const weekDays = useMemo(() => {
+    const d = new Date(selectedDate + 'T00:00:00')
+    const dayOfWeek = (d.getDay() + 6) % 7 // Mon=0, Sun=6
+    const monday = new Date(d)
+    monday.setDate(d.getDate() - dayOfWeek)
+    return Array.from({ length: 7 }, (_, i) => {
+      const day = new Date(monday)
+      day.setDate(monday.getDate() + i)
+      return day.toISOString().split('T')[0]
+    })
+  }, [selectedDate])
+
+  const weekLabel = useMemo(() => {
+    const opts = { day: 'numeric', month: 'short' }
+    const s = new Date(weekDays[0] + 'T00:00:00').toLocaleDateString('en-AU', opts)
+    const e = new Date(weekDays[6] + 'T00:00:00').toLocaleDateString('en-AU', opts)
+    return `${s} – ${e}`
+  }, [weekDays])
+
+  const isCurrentWeek = weekDays.includes(today)
+
+  const goToPrevWeek = () => {
+    const d = new Date(weekDays[0] + 'T00:00:00')
+    d.setDate(d.getDate() - 7)
+    setSelectedDate(d.toISOString().split('T')[0])
+  }
+
+  const goToNextWeek = () => {
+    if (isCurrentWeek) return
+    const d = new Date(weekDays[0] + 'T00:00:00')
+    d.setDate(d.getDate() + 7)
+    const nextWeekDays = Array.from({ length: 7 }, (_, i) => {
+      const day = new Date(d)
+      day.setDate(d.getDate() + i)
+      return day.toISOString().split('T')[0]
+    })
+    setSelectedDate(nextWeekDays.includes(today) ? today : nextWeekDays[0])
+  }
+
+  const handleTouchStart = (e) => setTouchStartX(e.touches[0].clientX)
+  const handleTouchEnd = (e) => {
+    if (touchStartX === null) return
+    const dx = e.changedTouches[0].clientX - touchStartX
+    if (Math.abs(dx) > 50) dx > 0 ? goToPrevWeek() : goToNextWeek()
+    setTouchStartX(null)
+  }
+
+  const selectedNutrition = data.nutritionLogs.find(l => l.date === selectedDate) ?? null
+
+  const weekHits = useMemo(() => {
+    let calHits = 0, proHits = 0
+    weekDays.forEach(date => {
+      if (date > today) return
+      const log = data.nutritionLogs.find(l => l.date === date)
+      if (!log) return
+      if (log.calories <= PLAN.calorieTarget + 150) calHits++
+      if (log.protein >= PLAN.proteinTarget) proHits++
+    })
+    return { calHits, proHits }
+  }, [weekDays, data.nutritionLogs, today])
+
+  // ── Weight chart data ──────────────────────────────────────────────────────
   const chartData   = buildChartData(data.weightLogs)
   const weekAvgs    = weeklyAverages(data.weightLogs)
   const current     = latestWeight(data.weightLogs)
@@ -60,7 +128,6 @@ export default function Charts() {
   const strengthSessions = data.workoutLogs.filter(l => l.type === 'strength').length
   const cardioSessions   = data.workoutLogs.filter(l => l.type === 'cardio').length
   const nutritionDays    = data.nutritionLogs.length
-  const latestNutrition  = [...data.nutritionLogs].sort((a, b) => b.date.localeCompare(a.date))[0] ?? null
 
   return (
     <div>
@@ -265,27 +332,84 @@ export default function Charts() {
       )}
 
       {/* ── Nutrition rings ── */}
-      {latestNutrition && (
-        <div className="section">
-          <p className="section-label">Nutrition · {dateLabel(latestNutrition.date)}</p>
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '20px 0 12px' }}>
+      <div className="section">
+        <p className="section-label">Nutrition</p>
+        <div
+          className="card"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          {/* Week navigation header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 12px 8px' }}>
+            <button
+              onClick={goToPrevWeek}
+              style={{ background: 'none', border: 'none', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-2)', display: 'flex', alignItems: 'center' }}
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-2)', letterSpacing: 0.3 }}>
+              {weekLabel}
+            </p>
+            <button
+              onClick={goToNextWeek}
+              style={{ background: 'none', border: 'none', padding: '4px 8px', cursor: isCurrentWeek ? 'default' : 'pointer', color: isCurrentWeek ? 'var(--sep)' : 'var(--text-2)', display: 'flex', alignItems: 'center' }}
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
 
-              {/* Calories ring */}
+          {/* Small rings strip — one column per day */}
+          <div style={{ display: 'flex', justifyContent: 'space-around', padding: '4px 8px 8px' }}>
+            {weekDays.map((date, i) => {
+              const log = data.nutritionLogs.find(l => l.date === date)
+              const isSelected = date === selectedDate
+              const isFuture = date > today
+              const calColor = log && log.calories > PLAN.calorieTarget + 150 ? 'var(--red)' : 'var(--primary)'
+              const proColor = log && log.protein >= PLAN.proteinTarget ? 'var(--green)' : 'var(--primary)'
+
+              return (
+                <div
+                  key={date}
+                  onClick={() => !isFuture && setSelectedDate(date)}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: isFuture ? 'default' : 'pointer', opacity: isFuture ? 0.25 : 1 }}
+                >
+                  <p style={{ fontSize: 10, fontWeight: isSelected ? 700 : 500, color: isSelected ? 'var(--primary)' : 'var(--text-2)', marginBottom: 1 }}>
+                    {DAY_LETTERS[i]}
+                  </p>
+                  <Ring value={log?.calories ?? 0} max={PLAN.calorieTarget} color={calColor} size={32} stroke={4} />
+                  <Ring value={log?.protein ?? 0} max={PLAN.proteinTarget} color={proColor} size={32} stroke={4} />
+                  <div style={{ width: 4, height: 4, borderRadius: '50%', background: isSelected ? 'var(--primary)' : 'transparent', marginTop: 1 }} />
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Divider */}
+          <div style={{ height: 1, background: 'var(--sep)', margin: '0 16px' }} />
+
+          {/* Selected day label */}
+          <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', textAlign: 'center', paddingTop: 14 }}>
+            {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' })}
+          </p>
+
+          {/* Large rings for selected day */}
+          {selectedNutrition ? (
+            <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '16px 0 12px' }}>
+              {/* Calories */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                 <Ring
-                  value={latestNutrition.calories}
+                  value={selectedNutrition.calories}
                   max={PLAN.calorieTarget}
-                  color={latestNutrition.calories > PLAN.calorieTarget + 150 ? 'var(--red)' : 'var(--primary)'}
+                  color={selectedNutrition.calories > PLAN.calorieTarget + 150 ? 'var(--red)' : 'var(--primary)'}
                   size={148}
                   stroke={16}
                 >
                   <p style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-1)', letterSpacing: -1, lineHeight: 1 }}>
-                    {latestNutrition.calories.toLocaleString()}
+                    {selectedNutrition.calories.toLocaleString()}
                   </p>
                   <p style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 3 }}>kcal</p>
                   <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--primary)', marginTop: 2 }}>
-                    {Math.round((latestNutrition.calories / PLAN.calorieTarget) * 100)}%
+                    {Math.round((selectedNutrition.calories / PLAN.calorieTarget) * 100)}%
                   </p>
                 </Ring>
                 <div style={{ textAlign: 'center' }}>
@@ -294,22 +418,22 @@ export default function Charts() {
                 </div>
               </div>
 
-              {/* Protein ring */}
+              {/* Protein */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                 <Ring
-                  value={latestNutrition.protein}
+                  value={selectedNutrition.protein}
                   max={PLAN.proteinTarget}
-                  color={latestNutrition.protein >= PLAN.proteinTarget ? 'var(--green)' : 'var(--primary)'}
+                  color={selectedNutrition.protein >= PLAN.proteinTarget ? 'var(--green)' : 'var(--primary)'}
                   size={148}
                   stroke={16}
                 >
                   <p style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-1)', letterSpacing: -1, lineHeight: 1 }}>
-                    {latestNutrition.protein}
+                    {selectedNutrition.protein}
                     <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-2)' }}>g</span>
                   </p>
                   <p style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 3 }}>protein</p>
-                  <p style={{ fontSize: 11, fontWeight: 600, color: latestNutrition.protein >= PLAN.proteinTarget ? 'var(--green)' : 'var(--primary)', marginTop: 2 }}>
-                    {Math.round((latestNutrition.protein / PLAN.proteinTarget) * 100)}%
+                  <p style={{ fontSize: 11, fontWeight: 600, color: selectedNutrition.protein >= PLAN.proteinTarget ? 'var(--green)' : 'var(--primary)', marginTop: 2 }}>
+                    {Math.round((selectedNutrition.protein / PLAN.proteinTarget) * 100)}%
                   </p>
                 </Ring>
                 <div style={{ textAlign: 'center' }}>
@@ -317,11 +441,41 @@ export default function Charts() {
                   <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>/ {PLAN.proteinTarget}g target</p>
                 </div>
               </div>
+            </div>
+          ) : (
+            <div style={{ padding: '32px 16px', textAlign: 'center' }}>
+              <p style={{ fontSize: 28, color: 'var(--text-3)', marginBottom: 8 }}>—</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-2)' }}>
+                {selectedDate > today ? 'Future date' : 'Nothing logged'}
+              </p>
+              <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>
+                Log nutrition on the Log tab to see it here
+              </p>
+            </div>
+          )}
 
+          {/* Weekly summary footer */}
+          <div style={{ borderTop: '1px solid var(--sep)', padding: '12px 16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: 22, fontWeight: 800, color: 'var(--primary)', letterSpacing: -1, lineHeight: 1 }}>
+                  {weekHits.calHits}
+                  <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)' }}>/7</span>
+                </p>
+                <p style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 3 }}>calorie days hit</p>
+              </div>
+              <div style={{ width: 1, height: 32, background: 'var(--sep)' }} />
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: 22, fontWeight: 800, color: 'var(--green)', letterSpacing: -1, lineHeight: 1 }}>
+                  {weekHits.proHits}
+                  <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)' }}>/7</span>
+                </p>
+                <p style={{ fontSize: 11, color: 'var(--text-2)', marginTop: 3 }}>protein days hit</p>
+              </div>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
       <div style={{ height: 8 }} />
     </div>
