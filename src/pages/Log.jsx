@@ -129,8 +129,10 @@ export default function Log() {
       setScansLeft(scansRemaining())
       // Skip questions if none returned
       if (!result.questions?.length) {
-        setCalories(String(result.calories))
-        setProtein(String(result.protein))
+        const baseCal = +calories || todayN?.calories || 0
+        const basePro = +protein  || todayN?.protein  || 0
+        setCalories(String(baseCal + result.calories))
+        setProtein(String(basePro + result.protein))
       }
     } catch (err) {
       setScanError(err.message)
@@ -154,8 +156,10 @@ export default function Log() {
         answersArr,
       )
       setFinalResult(result)
-      setCalories(String(result.calories))
-      setProtein(String(result.protein))
+      const baseCal = +calories || todayN?.calories || 0
+      const basePro = +protein  || todayN?.protein  || 0
+      setCalories(String(baseCal + result.calories))
+      setProtein(String(basePro + result.protein))
       setScansLeft(scansRemaining())
     } catch (err) {
       setScanError(err.message)
