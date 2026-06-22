@@ -43,13 +43,13 @@ export default function Today({ onNavigate }) {
   const hour = now.getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
-  const plannedType = SCHEDULE[now.getDay()]
-  const meta = WORKOUT_META[plannedType]
-
   const todayWeight    = data.weightLogs.find(l => l.date === today)
   const todayNutrition = data.nutritionLogs.find(l => l.date === today)
   const todaySteps     = data.stepsLogs.find(l => l.date === today)
   const todayWorkout   = data.workoutLogs.find(l => l.date === today)
+
+  const plannedType = SCHEDULE[now.getDay()]
+  const meta = WORKOUT_META[todayWorkout?.type ?? plannedType]
 
   const currentWeight = todayWeight?.weight ?? latestWeight(data.weightLogs) ?? PLAN.startWeight
   const avg7          = sevenDayAvg(data.weightLogs, today)
